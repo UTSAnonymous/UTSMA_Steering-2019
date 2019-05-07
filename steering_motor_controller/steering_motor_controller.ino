@@ -17,6 +17,7 @@
 FlexCAN CANbus(1000000);
 const int CANID_STEERING_RX = 0x33;
 const int CANID_STEERING_TX = 0x34;
+const int CANID_AUTONOMOUS_ENABLED = 0x88;
 
 // Pin Setup -----------------------------
 int led = 13;
@@ -26,7 +27,9 @@ int stop_button = 15;
 // Steering data -------------------------
 int rawByteData = 0;
 
-static CAN_message_t txmsg_error_steering, rxmsg;
+bool autonomous_stop = false;
+
+static CAN_message_t txmsg_error_steering, rxmsg, tx_autonomous;
 
 #include "FlexCAN.h"
 
@@ -84,7 +87,7 @@ void loop() {
 
             // check for the enable bit
             if(rxmsg.buf[0] == 1 && digitalRead(stop_button) == LOW)         //-----------------// autonomous enable bit is true
-            {
+            {    
                 digitalWrite(led, HIGH);
                 //enable relay 
                 digitalWrite(Relay, HIGH);
@@ -124,15 +127,53 @@ void loop() {
         }
     }
 
-
+    // if the button is pressed
     if(digitalRead(stop_button) == HIGH){
-        digitalWrite(Relay, LOW);
-        digitalWrite(led, LOW);
+        if( autonomous_stop == false){
+            
+            digitalWrite(Relay, LOW);
+            digitalWrite(led, LOW);
+    
+            // if stop button is pressed, send autonomous bit as high
+            for( int i = 0; i < 10; i++){
+                tx_autonomous.id = CANID_AUTONOMOUS_ENABLED;
+                tx_autonomous.len = 4;
+                tx_autonomous.buf[0] = 0;
+                tx_autonomous.buf[1] = 0;
+                tx_autonomous.buf[2] = 0;
+                tx_autonomous.buf[3] = 0;
+                CANbus.write(tx_autonomous);
+
+                delay(20);
+            }
+
+            autonomous_stop = true;
+        }
     }
 
+    //if the button is not pressed
+    if(digitalRead(stop_button) == LOW){
+        if( autonomous_stop == true){
+            
+            digitalWrite(Relay, LOW);
+            digitalWrite(led, LOW);
+    
+            // if stop button is pressed, send autonomous bit as high
+            for( int i = 0; i < 10; i++){
+                tx_autonomous.id = CANID_AUTONOMOUS_ENABLED;
+                tx_autonomous.len = 4;
+                tx_autonomous.buf[0] = 1;
+                tx_autonomous.buf[1] = 1;
+                tx_autonomous.buf[2] = 1;
+                tx_autonomous.buf[3] = 1;
+                CANbus.write(tx_autonomous);
 
-    //read uart rx for any error
+                delay(20);
+            }
 
-    //transmit error to canbus
+            autonomous_stop = false;
+        }
+    }
+
 
 }
